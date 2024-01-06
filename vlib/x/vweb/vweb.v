@@ -178,16 +178,18 @@ fn generate_routes[A, X](app &A) !map[string]Route {
 				return error('error parsing method attributes: ${err}')
 			}
 
-			routes[method.name] = Route{
+			mut r := Route{
 				methods: http_methods
 				path: route_path
 				host: host
 			}
 
 			$if A is MiddlewareApp {
-				routes[method.name].middlewares = app.Middleware.get_handlers_for_route[X](route_path)
-				routes[method.name].after_middlewares = app.Middleware.get_handlers_for_route_after[X](route_path)
+				r.middlewares = app.Middleware.get_handlers_for_route[X](route_path)
+				r.after_middlewares = app.Middleware.get_handlers_for_route_after[X](route_path)
 			}
+
+			routes[method.name] = r
 		}
 	}
 	return routes

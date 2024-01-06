@@ -75,14 +75,14 @@ pub fn (mut app App) destroy_session(mut ctx Context) vweb.Result {
 }
 
 fn testsuite_begin() {
-	os.chdir(os.dir(@FILE))!
-
 	spawn fn () {
 		mut app := &App{
 			sessions: sessions.Sessions[User]{
 				store: sessions.MemoryStore[User]{}
 				secret: 'secret'.bytes()
-				cookie_name: cookie_name
+				cookie_options: sessions.CookieOptions{
+					cookie_name: cookie_name
+				}
 			}
 		}
 
@@ -132,6 +132,10 @@ fn test_update_session() {
 	updated_user.age++
 	assert x.body == ?User(updated_user).str()
 }
+
+fn test_destroy_session() {}
+
+fn test_session_expired() {}
 
 // Utility
 

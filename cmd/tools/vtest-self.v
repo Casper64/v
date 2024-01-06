@@ -263,8 +263,9 @@ const skip_on_ubuntu_musl = [
 	'vlib/net/smtp/smtp_test.v',
 	'vlib/v/tests/websocket_logger_interface_should_compile_test.v',
 	'vlib/v/tests/fn_literal_type_test.v',
-	'vlib/vweb/x/tests/vweb_test.v',
-	'vlib/vweb/x/tests/vweb_app_test.v',
+	'vlib/x/vweb/sessions/tests/db_store_test.v',
+	'vlib/x/vweb/tests/vweb_test.v',
+	'vlib/x/vweb/tests/vweb_app_test.v',
 ]
 const skip_on_linux = [
 	'do_not_remove',
@@ -300,6 +301,7 @@ const skip_on_windows = [
 	'vlib/sync/once_test.v',
 	'vlib/v/tests/websocket_logger_interface_should_compile_test.v',
 	'vlib/v/tests/fn_literal_type_test.v',
+	'vlib/x/vweb/sessions/tests/db_store_test.v',
 ]
 const skip_on_non_windows = [
 	'do_not_remove',
