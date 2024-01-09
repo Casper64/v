@@ -49,7 +49,7 @@ pub struct CookieOptions {
 	http_only   bool          = true
 	path        string        = '/'
 	same_site   http.SameSite = .same_site_strict_mode
-	secure      bool = true
+	secure      bool
 }
 
 @[heap]
@@ -59,6 +59,9 @@ pub:
 	cookie_options CookieOptions
 	// max age of session data and id, default is 30 days
 	max_age time.Duration = time.hour * 24 * 30
+	// set to true if you want to create a session if there isn't any data stored yet.
+	// Also called pre-sessions
+	save_uninitialized bool
 pub mut:
 	store Store[T] @[required]
 }
@@ -66,6 +69,7 @@ pub mut:
 // generate a new session id and set a Set-Cookie header on the response
 pub fn (mut s Sessions[T]) set_session_id[X](mut ctx X) string {
 	sid, signed := new_session_id(s.secret)
+	ctx.CurrentSession.session_id = sid
 
 	ctx.set_cookie(http.Cookie{
 		value: signed
@@ -108,12 +112,12 @@ pub fn (mut s Sessions[T]) destroy[X](mut ctx X) {
 
 // logout destroys the data for the current session and removes
 // the session id Cookie
-pub fn (mut s Session[T]) logout[X](mut ctx X) {
+pub fn (mut s Sessions[T]) logout[X](mut ctx X) {
 	s.destroy(mut ctx)
 	ctx.set_cookie(http.Cookie{
 		name: s.cookie_options.cookie_name
 		value: ''
-		max_age: 0
+		expires: time.unix(0)
 	})
 }
 
@@ -123,6 +127,13 @@ pub fn (mut s Sessions[T]) save[X](mut ctx X, data T) {
 		s.store.set(sid, data)
 		ctx.CurrentSession.session_data = data
 	} else {
+		if s.save_uninitialized == false {
+			// no valid session id, but the user only wants to create a session
+			// when data is saved. So we create the session here
+			sid := s.set_session_id(mut ctx)
+			s.store.set(sid, data)
+			ctx.CurrentSession.session_data = data
+		}
 		eprintln('[vweb.sessions] error: trying to save data without a valid session!')
 	}
 }
@@ -136,9 +147,7 @@ pub fn (mut s Sessions[T]) resave[X](mut ctx X, data T) {
 		s.store.destroy(sid)
 	}
 
-	new_sid := s.set_session_id(mut ctx)
-	s.store.set(new_sid, data)
-	ctx.CurrentSession.session_data = data
+	s.save(mut ctx, data)
 }
 
 // get the current session id, if it is set
@@ -177,8 +186,10 @@ pub fn (mut s Sessions[T]) middleware[X]() vweb.MiddlewareOptions[X] {
 			sid, valid := s.validate_session(ctx)
 
 			if !valid {
-				// invalid session id, so create a new one
-				ctx.CurrentSession.session_id = s.set_session_id(mut ctx)
+				if s.save_uninitialized {
+					// invalid session id, so create a new one
+					s.set_session_id(mut ctx)
+				}
 				return true
 			}
 

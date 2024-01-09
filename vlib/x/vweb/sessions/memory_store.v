@@ -3,10 +3,9 @@ module sessions
 import time
 
 struct MemoryStoreSessions[T] {
-pub:
-	created_at time.Time
 pub mut:
-	data T
+	created_at time.Time
+	data       T
 }
 
 // MemoryStore stores sessions in a `map` in memory only.
