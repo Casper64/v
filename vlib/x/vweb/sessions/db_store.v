@@ -42,7 +42,8 @@ pub fn (mut store DBStore[T]) all() []T {
 	})
 }
 
-// get session for session id `sid`. The session can be `max_age` old
+// get session for session id `sid`. The session can be `max_age` old.
+// `max_age` will be ignored when set to `0`
 pub fn (mut store DBStore[T]) get(sid string, max_age time.Duration) ?T {
 	rows := sql store.db {
 		select from DBStoreSessions where session_id == sid
@@ -54,7 +55,7 @@ pub fn (mut store DBStore[T]) get(sid string, max_age time.Duration) ?T {
 	if rows.len == 1 {
 		record := rows[0]
 		// session is expired
-		if record.created_at.add(max_age) < time.now() {
+		if max_age != 0 && record.created_at.add(max_age) < time.now() {
 			store.destroy(sid)
 			return none
 		}

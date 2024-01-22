@@ -5,9 +5,10 @@ import x.vweb
 import x.vweb.sessions
 
 const port = 13010
-const localserver = 'http://127.0.0.1:${port}'
+const localserver = 'http://localhost:${port}'
 const exit_after = time.second * 10
 const cookie_name = 'SESSION_ID'
+const max_age = time.second * 2
 
 pub struct User {
 pub mut:
@@ -83,12 +84,13 @@ fn testsuite_begin() {
 				cookie_options: sessions.CookieOptions{
 					cookie_name: cookie_name
 				}
+				max_age: max_age
 			}
 		}
 
 		app.use(app.sessions.middleware[Context]())
 
-		vweb.run_at[App, Context](mut app, port: port, timeout_in_seconds: 2, family: .ip) or {
+		vweb.run_at[App, Context](mut app, port: port, timeout_in_seconds: 2) or {
 			panic('could not start vweb app')
 		}
 	}()
@@ -133,9 +135,28 @@ fn test_update_session() {
 	assert x.body == ?User(updated_user).str()
 }
 
-fn test_destroy_session() {}
+fn test_destroy_session() {
+	sid := get_session_id()!
+	mut x := make_request_with_session_id(.get, '/session_data', sid)!
+	assert x.body != 'Option(none)'
 
-fn test_session_expired() {}
+	x = make_request_with_session_id(.get, '/destroy_session', sid)!
+	assert x.status() == .ok
+
+	x = make_request_with_session_id(.get, '/session_data', sid)!
+	assert x.body == 'Option(none)'
+}
+
+fn test_session_expired() {
+	sid := get_session_id()!
+	mut x := make_request_with_session_id(.get, '/session_data', sid)!
+	assert x.body != 'Option(none)'
+
+	time.sleep(max_age)
+
+	x = make_request_with_session_id(.get, '/session_data', sid)!
+	assert x.body == 'Option(none)'
+}
 
 // Utility
 

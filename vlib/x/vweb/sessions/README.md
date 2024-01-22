@@ -1,11 +1,21 @@
 # Sessions
 
 A sessions module for web projects. You can also use this module outside of vweb
-see [here](#using-sessions-outside-vweb).
+see [here](#advanced-usage).
 
 ## Usage
 
-There 
+The sessions module provides an implemention for [session stores](#custom-stores). 
+The session store handles the saving, storing and retrieving of data. You can
+either use a store directly yourself, or you can use the `session.Sessions` struct
+which is easier to use since it also handles session verification and intergrates nicely
+with vweb.
+
+If you want to use `session.Sessions` in your vweb app the session id's will be
+stored using cookies. The best way to get started is to follow the 
+[getting started](#getting-started) section.
+
+Otherwise have a look at the [advanced usage](#advanced-usage) section.
 
 ## Getting Started
 
@@ -132,6 +142,23 @@ pub fn (app &App) index(mut ctx Context) vweb.Result {
 
 You can use the `save` method to update and save any session data.
 
+When the user logs in, the `save` method is called and a new session id is generated
+and set as cookie. Assuming there wasn't already a session going on. If you want to 
+be sure that a new session id is generated when you save data, you can use the `resave`
+method. This method will save the data and *always* set a new session id.
+
+**Example:**
+```v
+pub fn (mut app App) login(mut ctx Context) vweb.Result {
+	// use resave, because the authentication status of the session changes.
+	// this function will set a new session id and destroy old session data
+	app.sessions.save(mut ctx, User{
+		name: '[no name provided]'
+	})
+	return ctx.text('You are now logged in!')
+}
+```
+
 The following endpoint checks if a session exists, if it doesn't inform the
 user that they need to login.
 
@@ -158,22 +185,6 @@ pub fn (mut app App) save(mut ctx Context) vweb.Result {
 }
 ```
 
-If the authentication or authorization status of a session changes you should use the `resave`
-method instead of `save`. `resave` will set a new session id and destroy the data of the old
-sessions. For security reasons it is recommended to use this best practice.
-
-**Example:**
-```v
-pub fn (mut app App) login(mut ctx Context) vweb.Result {
-	// use resave, because the authentication status of the session changes.
-	// this function will set a new session id and destroy old session data
-	app.sessions.resave(mut ctx, User{
-		name: '[no name provided]'
-	})
-	return ctx.text('You are now logged in!')
-}
-```
-
 #### Destroying data / logging out
 
 If a user logs out you can use the `logout` method to destroy the session data and 
@@ -188,9 +199,100 @@ pub fn (mut app App) logout(mut ctx Context) vweb.Result {
 }
 ```
 
-## Configuration
+### Configuration
 
+Change the `cookie_options` field to modify how the session cookie is stored.
 
+**Example:**
+```v ignore
+mut app := &App{
+	sessions: &sessions.Sessions[User]{
+		// ...
+		cookie_options: sessions.CookieOptions{
+			// cookie can only be stored on an HTTPS site.
+			secure: true
+		}
+	}
+}
+```
+
+#### Mag-age
+
+By default the expiration date of a session is 30 days. You can change this by
+setting the `max_age` field. If `max_age = 0`, then session expiration times are not
+checked and sessions will be stored forever until they are destroyed.
+
+#### Pre-sessions
+
+By default a session cookie is only generated when you call `save`, or `resave`.
+By setting `save_uninitialized` to `true` a session cookie will always be set,
+even if there is no data for the session yet. This is useful when you need session
+data to be always available.
+
+Or, for example, you could use pre-sessions to mittigate login-csrf, 
+since you can bind a csrf-token to the "pre-session" id. Then when the user logs 
+in, you can set a new session id with `resave`..
+
+## Advanced Usage
+
+If you want to store session id's in another manner than cookies, or if you want
+to use this sessions module outside of vweb, the easiest way is to create an
+instance of a `Store` and directly interact with it.
+
+First we create an instance of the `MemoryStore` and pass the user struct as data type.
+**Example:**
+```v
+import x.vweb.sessions
+
+const secret = 'my secret'.bytes()
+
+pub struct User {
+pub mut:
+	name     string
+	verified bool
+}
+
+fn main() {
+	mut store := sessions.MemoryStore[User]{}
+
+	user := User{
+		name: 'vaesel'
+	}
+}
+```
+
+### Generating and validating session id's
+
+The session module provides a function for generating a new signed session id
+and for verifying a signed session id. You can ofcourse generate your own session id's.
+
+**Example:**
+```v ignore
+// fn main
+// generate a new session id and sign it
+session_id, signed_session_id := sessions.new_session_id(secret)
+// save session data to our store
+store.set(session_id, user)
+
+// get a normal session id from the signed version and verify it
+verified_session_id, valid := sessions.verify_session_id(signed_session_id, secret)
+assert verified_session_id == session_id && valid == true
+```
+
+We can retrieve the saved user and verify that the data we saved can be retrieved
+from the verified session id.
+
+**Example:**
+```v ignore
+// fn main
+// pass `max_age = 0` to ignore the expiration time.
+if saved_user := store.get(verified_session_id, 0) {
+	assert user == saved_user
+	println('Retrieved a valid user! ${saved_user}')
+} else {
+	println(':(')
+}
+```
 
 ## Custom Stores
 
@@ -200,11 +302,13 @@ stored and retrieved. Each session store needs to implement the `Store[T]` inter
 ```v ignore
 pub interface Store[T] {
 mut:
-	// get the current session data if the id exists and if it's not expired
+	// get the current session data if the id exists and if it's not expired.
+	// If the session is expired, any associated data should be destroyed.
+	// If `max_age=0` the store will not check for expiration of the session.
 	get(sid string, max_age time.Duration) ?T
 	// destroy session data for `sid`
 	destroy(sid string)
-	// set session data for `val`
+	// set session data for `sid`
 	set(sid string, val T)
 }
 
@@ -223,7 +327,4 @@ Only the `get`, `destroy` and `set` methods are required to implement.
 
 The `max_age` argument in `get` can be used to check whether the session is still valid. 
 The database and memory store both check the expiration time from the time the session data
-first inserted.
-
-## Using sessions outside of vweb
-A
+first inserted. But if `max_age = 0`, the stores will not check for expiration time.
