@@ -93,6 +93,7 @@ const skip_test_files = [
 	'vlib/db/mysql/prepared_stmt_test.v', // mysql not installed
 	'vlib/db/pg/pg_orm_test.v', // pg not installed
 	'vlib/db/pg/pg_test.v', // pg not installed
+	'vlib/db/pg/pg_double_test.v', // pg not installed
 ]
 // These tests are too slow to be run in the CI on each PR/commit
 // in the sanitized modes:
@@ -322,6 +323,8 @@ const skip_on_non_amd64_or_arm64 = [
 	'do_not_remove',
 	// closures aren't implemented yet:
 	'vlib/v/tests/closure_test.v',
+	// native aren't implemented:
+	'vlib/v/gen/native/tests/native_test.v',
 	'vlib/context/cancel_test.v',
 	'vlib/context/deadline_test.v',
 	'vlib/context/empty_test.v',
@@ -346,6 +349,7 @@ fn main() {
 	all_test_files << os.walk_ext(os.join_path(vroot, 'cmd'), '_test.v')
 	test_js_files := os.walk_ext(os.join_path(vroot, 'vlib'), '_test.js.v')
 	all_test_files << test_js_files
+	all_test_files << os.walk_ext(os.join_path(vroot, 'vlib'), '_test.c.v')
 
 	if just_essential {
 		rooted_essential_list := essential_list.map(os.join_path(vroot, it))
@@ -353,6 +357,7 @@ fn main() {
 	}
 	testing.eheader(title)
 	mut tsession := testing.new_test_session(cmd_prefix, true)
+	tsession.exec_mode = .compile_and_run
 	tsession.files << all_test_files.filter(!it.contains('testdata' + os.path_separator))
 	tsession.skip_files << skip_test_files
 
@@ -370,6 +375,7 @@ fn main() {
 	}
 	testing.find_started_process('postgres') or {
 		tsession.skip_files << 'vlib/db/pg/pg_orm_test.v'
+		tsession.skip_files << 'vlib/db/pg/pg_double_test.v'
 	}
 
 	$if windows {
@@ -435,7 +441,7 @@ fn main() {
 		tsession.skip_files << skip_on_ubuntu_musl
 	}
 	$if !amd64 && !arm64 {
-		tsession.skip_files << skip_on_non_amd64
+		tsession.skip_files << skip_on_non_amd64_or_arm64
 	}
 	$if amd64 {
 		tsession.skip_files << skip_on_amd64

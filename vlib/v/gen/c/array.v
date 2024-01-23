@@ -146,6 +146,10 @@ fn (mut g Gen) fixed_array_init(node ast.ArrayInit, array_type Type, var_name st
 		ret_typ := g.typ(node.typ)
 		g.write('${ret_typ} ${tmp_var} = ')
 	}
+	if g.inside_struct_init && g.inside_cast {
+		ret_typ := g.typ(node.typ)
+		g.write('(${ret_typ})')
+	}
 	g.write('{')
 	if node.has_val {
 		tmp_inside_array := g.inside_array_item
@@ -1339,9 +1343,12 @@ fn (mut g Gen) fixed_array_var_init(expr ast.Expr, size int) {
 	g.write('{')
 	for i in 0 .. size {
 		if expr.is_auto_deref_var() {
-			g.write('*')
+			g.write('(*')
 		}
 		g.expr(expr)
+		if expr.is_auto_deref_var() {
+			g.write(')')
+		}
 		g.write('[${i}]')
 		if i != size - 1 {
 			g.write(', ')
