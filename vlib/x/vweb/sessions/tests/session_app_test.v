@@ -32,6 +32,11 @@ pub struct App {
 	vweb.Middleware[Context]
 pub mut:
 	sessions &sessions.Sessions[User]
+	started  chan bool
+}
+
+pub fn (mut app App) before_accept_loop() {
+	app.started <- true
 }
 
 pub fn (app &App) session_data(mut ctx Context) vweb.Result {
@@ -77,31 +82,27 @@ pub fn (mut app App) destroy_session(mut ctx Context) vweb.Result {
 
 fn testsuite_begin() {
 	spawn fn () {
-		mut app := &App{
-			sessions: &sessions.Sessions[User]{
-				store: sessions.MemoryStore[User]{}
-				secret: 'secret'.bytes()
-				cookie_options: sessions.CookieOptions{
-					cookie_name: cookie_name
-				}
-				max_age: max_age
-			}
-		}
-
-		app.use(app.sessions.middleware[Context]())
-
-		vweb.run_at[App, Context](mut app, port: port, timeout_in_seconds: 2) or {
-			panic('could not start vweb app')
-		}
-	}()
-	// app startup time
-	time.sleep(time.second * 2)
-
-	spawn fn () {
 		time.sleep(exit_after)
 		assert true == false, 'timeout reached!'
 		exit(1)
 	}()
+
+	mut app := &App{
+		sessions: &sessions.Sessions[User]{
+			store: sessions.MemoryStore[User]{}
+			secret: 'secret'.bytes()
+			cookie_options: sessions.CookieOptions{
+				cookie_name: cookie_name
+			}
+			max_age: max_age
+		}
+	}
+
+	app.use(app.sessions.middleware[Context]())
+
+	spawn vweb.run_at[App, Context](mut app, port: port, timeout_in_seconds: 2)
+	// app startup time
+	_ := <-app.started
 }
 
 fn test_empty_session() {
