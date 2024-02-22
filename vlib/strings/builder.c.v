@@ -253,6 +253,17 @@ pub fn (mut b Builder) ensure_cap(n int) {
 	}
 }
 
+// grow_len grows the length of the buffer by `n` bytes if necessary
+pub fn (mut b Builder) grow_len(n int) {
+	if n <= 0 {
+		return
+	}
+
+	new_len := b.len + n
+	b.ensure_cap(new_len)
+	unsafe { b.len = new_len }
+}
+
 // free frees the memory block, used for the buffer.
 // Note: do not use the builder, after a call to free().
 @[unsafe]
